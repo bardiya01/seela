@@ -33,7 +33,17 @@ pub fn open_session(path: &Path, config: &Config, debug: bool) -> Result<(), Box
 
     if !session_exists {
         if let Some(session_config) = config.get_session_for_path(path) {
-            create_session_from_config(&session_name, path, config, session_config, debug)?;
+            if let Err(e) =
+                create_session_from_config(&session_name, path, config, session_config, debug)
+            {
+                // Kill the partially-created session so the next run starts clean.
+                let _ = Command::new("tmux")
+                    .arg("kill-session")
+                    .arg("-t")
+                    .arg(&session_name)
+                    .status();
+                return Err(e);
+            }
         } else {
             let mut cmd = Command::new("tmux");
             cmd.arg("new-session")
@@ -164,6 +174,7 @@ fn create_session_from_config(
         } else {
             let mut cmd = Command::new("tmux");
             cmd.arg("new-window")
+                .arg("-a")
                 .arg("-t")
                 .arg(session_name)
                 .arg("-n")
@@ -281,7 +292,7 @@ fn create_session_from_config(
                                 "@confirm" => {
                                     if let Ok(current_exe) = std::env::current_exe() {
                                         final_cmd = format!(
-                                            "{} --run-command {} --run-command-label {}",
+                                            "{} --run-command {} --run-command-label {}; clear",
                                             current_exe.display(),
                                             shell_escape(val),
                                             shell_escape(val),
