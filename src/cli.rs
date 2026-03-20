@@ -18,4 +18,7 @@ pub struct Args {
 
     #[arg(long, hide = true)]
     pub run_command: Option<String>,
+
+    #[arg(long, hide = true)]
+    pub run_command_label: Option<String>,
 }

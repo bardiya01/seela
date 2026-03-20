@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use walkdir::WalkDir;
 
-pub fn run_confirm(cmd: &str) -> Result<(), Box<dyn Error>> {
-    print!("Run \"{cmd}\"? [Y/n] ");
+pub fn run_confirm(label: &str, cmd: &str) -> Result<(), Box<dyn Error>> {
+    print!("Run \"{label}\"? [Y/n] ");
     io::stdout().flush()?;
 
     let mut input = String::new();
