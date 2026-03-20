@@ -110,13 +110,13 @@ mod defaults {
         "tree -C -L 2 {}".to_string()
     }
     pub fn startup_delay() -> u64 {
-        1000
+        600
     }
     pub fn key_delay() -> u64 {
-        100
+        60
     }
     pub fn action_delay() -> u64 {
-        200
+        120
     }
 }
 

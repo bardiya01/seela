@@ -1,8 +1,11 @@
 use clap::Parser;
-use seela::cli;
-use seela::config;
-use seela::run;
 use std::error::Error;
+
+mod cli;
+mod config;
+mod fzf;
+mod run;
+mod tmux;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args = cli::Args::parse();
