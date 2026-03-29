@@ -22,8 +22,15 @@ cargo build --release
 ## Usage
 
 ```bash
-seela
-seela --config path/to/config.toml
+Usage: seela [OPTIONS] [DIR]
+
+Arguments:
+  [DIR]  Open a directory as tmux session, config will still apply
+
+Options:
+  -c, --config <FILE>  Path to a config file
+  -h, --help           Print help
+  -V, --version        Print version
 ```
 
 Bind it to a key in tmux: (In `tmux.conf`)

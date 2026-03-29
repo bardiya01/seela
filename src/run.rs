@@ -1,4 +1,7 @@
+use crate::cli::Args;
 use crate::config::{Config, expand_path};
+use crate::fzf::select_project;
+use crate::tmux::open_session;
 use rayon::prelude::*;
 use std::error::Error;
 use std::io::{self, Write};
@@ -122,7 +125,7 @@ pub fn find_projects(config: &Config) -> Vec<PathBuf> {
     projects
 }
 
-pub fn run(config: &Config, config_dir: &Path, headless: bool) -> Result<(), Box<dyn Error>> {
+pub fn run(config: &Config, config_dir: &Path, cli: Args) -> Result<(), Box<dyn Error>> {
     // Check tmux is available before doing anything.
     let tmux_ok = std::process::Command::new("which")
         .arg("tmux")
@@ -135,24 +138,30 @@ pub fn run(config: &Config, config_dir: &Path, headless: bool) -> Result<(), Box
         return Err("tmux not found in PATH — please install tmux".into());
     }
 
-    let projects = find_projects(config);
-    let project_strings = projects
-        .iter()
-        .map(|p| p.to_string_lossy().to_string())
-        .collect::<Vec<String>>();
+    if let Some(path) = cli.dir
+        && path.exists()
+    {
+        open_session(&path, config, config_dir)?;
+    } else {
+        let projects = find_projects(config);
+        let project_strings = projects
+            .iter()
+            .map(|p| p.to_string_lossy().to_string())
+            .collect::<Vec<String>>();
 
-    if project_strings.is_empty() {
-        tracing::warn!("no projects found in configured search_dirs");
-    }
+        if project_strings.is_empty() {
+            tracing::warn!("no projects found in configured search_dirs");
+        }
 
-    if headless {
-        tracing::debug!("headless mode, skipping fzf and tmux");
-        tracing::debug!("found {} projects", project_strings.len());
-        return Ok(());
-    }
+        if cli.headless {
+            tracing::debug!("headless mode, skipping fzf and tmux");
+            tracing::debug!("found {} projects", project_strings.len());
+            return Ok(());
+        }
 
-    if let Some(selected) = crate::fzf::select_project(&project_strings, &config.fzf)? {
-        crate::tmux::open_session(Path::new(&selected), config, config_dir)?;
+        if let Some(selected) = select_project(&project_strings, &config.fzf)? {
+            open_session(Path::new(&selected), config, config_dir)?;
+        }
     }
 
     Ok(())

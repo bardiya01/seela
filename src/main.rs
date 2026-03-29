@@ -15,7 +15,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         return run::run_confirm(&cmd);
     }
 
-    let config_path = config::get_config_path(args.config);
+    let config_path = config::get_config_path(args.config.clone());
 
     let Some(path) = config_path else {
         eprintln!("seela: no config file found");
@@ -36,7 +36,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     tracing::debug!("config loaded: {cfg:#?}");
 
-    if let Err(e) = run::run(&cfg, &config_dir, args.headless) {
+    if let Err(e) = run::run(&cfg, &config_dir, args) {
         tracing::error!("{e}");
         std::process::exit(1);
     }
