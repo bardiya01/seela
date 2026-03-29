@@ -1,9 +1,12 @@
-use crate::config::{Config, Session, SplitDirection, Window};
-use std::error::Error;
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::thread;
-use std::time::Duration;
+use crate::config::{Config, Pane, Session, SplitDirection, Window};
+use std::{
+    error::Error,
+    path::{Path, PathBuf},
+    process::Command,
+    thread,
+    time::Duration,
+};
+use tracing::{debug, error, trace, warn};
 
 const SHELL_POLL_MS: u64 = 50;
 
@@ -14,7 +17,7 @@ pub fn open_session(path: &Path, config: &Config, config_dir: &Path) -> Result<(
         .to_string_lossy()
         .replace('.', "_");
 
-    tracing::debug!("opening session: {session_name}");
+    debug!("opening session: {session_name}");
 
     let status = Command::new("tmux")
         .arg("has-session")
@@ -33,7 +36,7 @@ pub fn open_session(path: &Path, config: &Config, config_dir: &Path) -> Result<(
             if let Err(e) =
                 create_session_from_config(&session_name, path, config, session_config, config_dir)
             {
-                tracing::error!("session creation failed: {e}");
+                error!("session creation failed: {e}");
                 let _ = Command::new("tmux")
                     .arg("kill-session")
                     .arg("-t")
@@ -42,7 +45,7 @@ pub fn open_session(path: &Path, config: &Config, config_dir: &Path) -> Result<(
                 return Err(e);
             }
         } else {
-            tracing::debug!(
+            debug!(
                 "no session config found for {}, creating plain session",
                 path.display()
             );
@@ -56,7 +59,7 @@ pub fn open_session(path: &Path, config: &Config, config_dir: &Path) -> Result<(
                 .status()?;
         }
     } else {
-        tracing::debug!("session {session_name} already exists, attaching");
+        debug!("session {session_name} already exists, attaching");
     }
 
     if std::env::var("TMUX").is_ok() {
@@ -77,7 +80,7 @@ pub fn open_session(path: &Path, config: &Config, config_dir: &Path) -> Result<(
 }
 
 fn get_command_output(mut cmd: Command) -> Result<String, Box<dyn Error>> {
-    tracing::trace!("executing: {cmd:?}");
+    trace!("executing: {cmd:?}");
     let output = cmd.output()?;
     if !output.status.success() {
         return Err(format!(
@@ -116,7 +119,7 @@ fn wait_for_shell_idle(pane_id: &str, timeout_ms: u64) -> bool {
             return true;
         }
         if elapsed >= timeout_ms {
-            tracing::warn!("timed out waiting for shell idle on pane {pane_id}");
+            warn!("timed out waiting for shell idle on pane {pane_id}");
             return false;
         }
         thread::sleep(Duration::from_millis(SHELL_POLL_MS));
@@ -161,7 +164,7 @@ fn create_session_from_config(
         let window_config = config.windows.iter().find(|w| &w.name == window_name);
 
         if window_config.is_none() {
-            tracing::trace!(
+            trace!(
                 "window '{}' referenced in session but not defined — creating empty window",
                 window_name
             );
@@ -197,14 +200,12 @@ fn create_session_from_config(
             get_command_output(cmd)?
         };
 
-        tracing::debug!("created window '{window_name}' with root pane {root_pane_id}");
+        debug!("created window '{window_name}' with root pane {root_pane_id}");
 
         if let Some(wc) = window_config {
             // A window with an empty panes list gets one plain shell pane.
             if wc.panes.is_empty() {
-                tracing::debug!(
-                    "window '{window_name}' has no panes defined, leaving as single shell"
-                );
+                debug!("window '{window_name}' has no panes defined, leaving as single shell");
                 // root_pane_id already exists as a shell, nothing to do.
             } else {
                 let split_arg = window_split_arg(wc);
@@ -230,12 +231,12 @@ fn create_session_from_config(
                         .arg("#{pane_id}");
                     match get_command_output(cmd) {
                         Ok(new_id) => {
-                            tracing::trace!("split pane {new_id} from {current_pane_id}");
+                            trace!("split pane {new_id} from {current_pane_id}");
                             pane_ids.push(new_id.clone());
                             current_pane_id = new_id;
                         }
                         Err(e) => {
-                            tracing::error!("split-window failed: {e}");
+                            error!("split-window failed: {e}");
                             break;
                         }
                     }
@@ -264,7 +265,7 @@ fn create_session_from_config(
                 let window_name_s = window_name.to_string();
                 let path_s = path.to_path_buf();
                 let config_dir_s = config_dir.to_path_buf();
-                tracing::debug!(
+                debug!(
                     "spawning {} hook(s) for window '{window_name}' (parallel={parallel})",
                     hooks.len()
                 );
@@ -287,7 +288,7 @@ fn create_session_from_config(
     }
 
     if !exec_tasks.is_empty() {
-        tracing::debug!(
+        debug!(
             "waiting {}ms for tmux to stabilize before sending execs",
             config.tmux.startup_delay_ms
         );
@@ -356,7 +357,7 @@ fn create_session_from_config(
                                         shell_escape(&task.pane_id),
                                         expanded_val,
                                     );
-                                    tracing::trace!("@run: {}", expanded_val);
+                                    trace!("@run: {}", expanded_val);
                                     wait_for_shell_idle(&task.pane_id, 10_000);
                                     let mut load = Command::new("tmux")
                                         .arg("load-buffer").arg("-")
@@ -377,20 +378,20 @@ fn create_session_from_config(
                                 }
                                 "@wait" => {
                                     if let Ok(secs) = val.parse::<u64>() {
-                                        tracing::trace!("@wait {secs}s");
+                                        trace!("@wait {secs}s");
                                         thread::sleep(Duration::from_secs(secs));
                                     }
                                     continue;
                                 }
                                 "@wait-milli" | "@wait-ms" => {
                                     if let Ok(ms) = val.parse::<u64>() {
-                                        tracing::trace!("@wait-ms {ms}ms");
+                                        trace!("@wait-ms {ms}ms");
                                         thread::sleep(Duration::from_millis(ms));
                                     }
                                     continue;
                                 }
                                 "@send-key" | "@sk" => {
-                                    tracing::trace!("@sk {val}");
+                                    trace!("@sk {val}");
                                     thread::sleep(Duration::from_millis(tmux_cfg.key_delay_ms));
                                     let mut key_cmd = Command::new("tmux");
                                     key_cmd
@@ -404,7 +405,7 @@ fn create_session_from_config(
                             }
                         }
 
-                        tracing::trace!("exec: {trimmed}");
+                        trace!("exec: {trimmed}");
                         wait_for_shell_idle(&task.pane_id, 10_000);
 
                         let mut run_cmd = Command::new("tmux");
@@ -431,7 +432,7 @@ fn create_session_from_config(
     }
 
     if let Some(focus_name) = &session_config.window_focus {
-        tracing::debug!("focusing window '{focus_name}'");
+        debug!("focusing window '{focus_name}'");
         Command::new("tmux")
             .arg("select-window")
             .arg("-t")
@@ -478,19 +479,19 @@ fn run_hook(script: &str, session_name: &str, window_name: &str, path: &Path, co
         shell_escape(window_name),
         expanded,
     );
-    tracing::trace!("running hook: {script}");
+    trace!("running hook: {script}");
     match Command::new("sh").arg("-c").arg(&cmd_str).output() {
         Ok(out) if !out.status.success() => {
             let stderr = String::from_utf8_lossy(&out.stderr);
             let stderr = stderr.trim();
             if !stderr.is_empty() {
-                tracing::error!("hook '{}' failed ({}): {}", script, out.status, stderr);
+                error!("hook '{}' failed ({}): {}", script, out.status, stderr);
             } else {
-                tracing::error!("hook '{}' failed ({})", script, out.status);
+                error!("hook '{}' failed ({})", script, out.status);
             }
         }
-        Err(e) => tracing::error!("hook '{}' could not run: {}", script, e),
-        _ => tracing::debug!("hook '{}' completed successfully", script),
+        Err(e) => error!("hook '{}' could not run: {}", script, e),
+        _ => debug!("hook '{}' completed successfully", script),
     }
 }
 
@@ -522,7 +523,7 @@ fn run_window_hooks(
 
 fn setup_pane(
     pane_id: &str,
-    config: &crate::config::Pane,
+    config: &Pane,
     path: &Path,
     config_dir: &Path,
     exec_tasks: &mut Vec<ExecTask>,
@@ -562,12 +563,12 @@ fn setup_pane(
                 .arg("#{pane_id}");
             match get_command_output(cmd) {
                 Ok(new_id) => {
-                    tracing::trace!("split pane {new_id} from {current_pane_id}");
+                    trace!("split pane {new_id} from {current_pane_id}");
                     sub_pane_ids.push(new_id.clone());
                     current_pane_id = new_id;
                 }
                 Err(e) => {
-                    tracing::error!("split-window failed: {e}");
+                    error!("split-window failed: {e}");
                     break;
                 }
             }

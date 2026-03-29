@@ -228,6 +228,7 @@ exec = ["start-server", "@wait-milli 500", "connect-client"]
 ```toml
 [[windows]]
 name = "app"
+
 [[windows.panes]]
 split = "vertical"
 

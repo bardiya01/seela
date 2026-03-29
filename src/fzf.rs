@@ -1,16 +1,10 @@
-use crate::config::FzfConfig;
-use std::error::Error;
-use std::io::Write;
-use std::process::{Command, Stdio};
-
-fn check_binary(name: &str) -> bool {
-    Command::new("which")
-        .arg(name)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .is_ok_and(|s| s.success())
-}
+use crate::{config::FzfConfig, run::check_binary};
+use std::{
+    error::Error,
+    io::Write,
+    process::{Command, Stdio},
+};
+use tracing::warn;
 
 pub fn select_project(
     projects: &[String],
@@ -31,7 +25,7 @@ pub fn select_project(
         if check_binary(binary) {
             cmd.arg("--preview").arg(&config.preview_command);
         } else if !binary.is_empty() {
-            tracing::warn!("preview command '{}' not found, falling back to ls", binary);
+            warn!("preview command '{}' not found, falling back to ls", binary);
             cmd.arg("--preview").arg("ls {}");
         }
     }

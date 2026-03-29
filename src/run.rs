@@ -1,13 +1,27 @@
-use crate::cli::Args;
-use crate::config::{Config, expand_path};
-use crate::fzf::select_project;
-use crate::tmux::open_session;
+use crate::{
+    cli::Args,
+    config::{Config, expand_path},
+    fzf::select_project,
+    tmux::open_session,
+};
 use rayon::prelude::*;
-use std::error::Error;
-use std::io::{self, Write};
-use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::{
+    error::Error,
+    io::{self, Write},
+    path::{Path, PathBuf},
+    process::{Command, Stdio},
+};
+use tracing::{debug, trace, warn};
 use walkdir::WalkDir;
+
+pub fn check_binary(name: &str) -> bool {
+    Command::new("which")
+        .arg(name)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
+}
 
 pub fn run_confirm(cmd: &str) -> Result<(), Box<dyn Error>> {
     print!("Run \"{cmd}\"? [Y/n] ");
@@ -20,7 +34,7 @@ pub fn run_confirm(cmd: &str) -> Result<(), Box<dyn Error>> {
     if input.is_empty() || input == "y" || input == "yes" {
         let status = Command::new("sh").arg("-c").arg(cmd).status()?;
         if !status.success() {
-            tracing::warn!("@confirm command exited with status: {}", status);
+            warn!("@confirm command exited with status: {}", status);
         }
     } else {
         println!("Skipped.");
@@ -56,19 +70,19 @@ pub fn find_projects(config: &Config) -> Vec<PathBuf> {
     // Warn about configured paths that don't exist.
     for dir in &search_dirs {
         if !dir.exists() {
-            tracing::warn!("search_dir does not exist: {}", dir.display());
+            warn!("search_dir does not exist: {}", dir.display());
         }
     }
     for p in config.folders.exclude_paths.as_deref().unwrap_or(&[]) {
         let expanded = expand_path(p);
         if !expanded.exists() {
-            tracing::warn!("exclude_path does not exist: {}", expanded.display());
+            warn!("exclude_path does not exist: {}", expanded.display());
         }
     }
     for p in config.folders.force_include.as_deref().unwrap_or(&[]) {
         let expanded = expand_path(p);
         if !expanded.exists() {
-            tracing::warn!("force_include path does not exist: {}", expanded.display());
+            warn!("force_include path does not exist: {}", expanded.display());
         }
     }
 
@@ -86,7 +100,7 @@ pub fn find_projects(config: &Config) -> Vec<PathBuf> {
                     None => break,
                     Some(Ok(entry)) => entry,
                     Some(Err(e)) => {
-                        tracing::warn!("error walking directory: {e}");
+                        warn!("error walking directory: {e}");
                         continue;
                     }
                 };
@@ -121,26 +135,24 @@ pub fn find_projects(config: &Config) -> Vec<PathBuf> {
         }
     }
 
-    tracing::debug!("found {} projects", projects.len());
+    debug!("found {} projects", projects.len());
     projects
 }
 
 pub fn run(config: &Config, config_dir: &Path, cli: Args) -> Result<(), Box<dyn Error>> {
-    // Check tmux is available before doing anything.
-    let tmux_ok = std::process::Command::new("which")
-        .arg("tmux")
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .is_ok_and(|s| s.success());
-
-    if !tmux_ok {
+    if !check_binary("tmux") {
         return Err("tmux not found in PATH — please install tmux".into());
     }
 
-    if let Some(path) = cli.dir
-        && path.exists()
-    {
+    if let Some(path) = cli.dir {
+        trace!("Using the path given to the command: {:?}", path);
+        if !path.exists() {
+            return Err(format!(
+                "Path {:?} passed to seela does not exist!! D: exiting...",
+                path
+            )
+            .into());
+        }
         open_session(&path, config, config_dir)?;
     } else {
         let projects = find_projects(config);
@@ -150,12 +162,12 @@ pub fn run(config: &Config, config_dir: &Path, cli: Args) -> Result<(), Box<dyn 
             .collect::<Vec<String>>();
 
         if project_strings.is_empty() {
-            tracing::warn!("no projects found in configured search_dirs");
+            warn!("no projects found in configured search_dirs");
         }
 
         if cli.headless {
-            tracing::debug!("headless mode, skipping fzf and tmux");
-            tracing::debug!("found {} projects", project_strings.len());
+            debug!("headless mode, skipping fzf and tmux");
+            debug!("found {} projects", project_strings.len());
             return Ok(());
         }
 

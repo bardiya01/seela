@@ -1,7 +1,8 @@
 use serde::Deserialize;
-use std::env;
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+};
 use tracing::Level;
 
 #[derive(Debug, Deserialize, Clone)]

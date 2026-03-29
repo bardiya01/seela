@@ -1,5 +1,8 @@
 use clap::Parser;
 use std::error::Error;
+use tracing::{debug, error};
+
+use crate::run::run;
 
 mod cli;
 mod config;
@@ -34,10 +37,10 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let _guard = logging::init(cfg.log.level);
 
-    tracing::debug!("config loaded: {cfg:#?}");
+    debug!("config loaded: {cfg:#?}");
 
-    if let Err(e) = run::run(&cfg, &config_dir, args) {
-        tracing::error!("{e}");
+    if let Err(e) = run(&cfg, &config_dir, args) {
+        error!("{e}");
         std::process::exit(1);
     }
 
