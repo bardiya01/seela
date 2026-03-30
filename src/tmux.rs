@@ -1,5 +1,6 @@
 use crate::config::{Config, Pane, Session, SplitDirection, Window};
 use std::{
+    env,
     error::Error,
     path::{Path, PathBuf},
     process::Command,
@@ -62,7 +63,7 @@ pub fn open_session(path: &Path, config: &Config, config_dir: &Path) -> Result<(
         debug!("session {session_name} already exists, attaching");
     }
 
-    if std::env::var("TMUX").is_ok() {
+    if env::var("TMUX").is_ok() {
         Command::new("tmux")
             .arg("switch-client")
             .arg("-t")
