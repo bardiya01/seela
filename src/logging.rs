@@ -1,5 +1,5 @@
 use std::{fs, path::PathBuf};
-use tracing::Level;
+use tracing::{Level, warn};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -60,6 +60,8 @@ pub fn init(level: Level) -> WorkerGuard {
         .with(file_layer)
         .with(stderr_layer)
         .init();
+
+    warn!("log initialized at level: {}", level);
 
     guard
 }

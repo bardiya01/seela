@@ -271,23 +271,15 @@ pub fn get_config_path(cli_path: Option<PathBuf>) -> Option<PathBuf> {
     None
 }
 
-pub fn load_config(config: Option<PathBuf>) -> Result<(Config, PathBuf), ConfigError> {
+pub fn load_config(config: Option<PathBuf>) -> Result<(Config, PathBuf), Box<dyn std::error::Error>> {
     let config_path = get_config_path(config);
 
     let Some(path) = config_path else {
-        eprintln!("seela: no config file found");
-        std::process::exit(1);
+        return Err("no config file found".into());
     };
 
     let config_dir = path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
-
-    let cfg = match Config::load(path) {
-        Ok(c) => c,
-        Err(e) => {
-            eprintln!("seela: {e}");
-            std::process::exit(1);
-        }
-    };
+    let cfg = Config::load(path)?;
 
     Ok((cfg, config_dir))
 }
