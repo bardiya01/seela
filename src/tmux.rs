@@ -16,7 +16,8 @@ pub fn open_session(path: &Path, config: &Config, config_dir: &Path) -> Result<(
         .file_name()
         .ok_or("Could not get directory name")?
         .to_string_lossy()
-        .replace('.', "_");
+        .replace('.', "_")
+        .replace(':', "_");
 
     debug!("opening session: {session_name}");
 
@@ -340,6 +341,15 @@ fn create_session_from_config(
                                         );
                                     }
                                 }
+                                "@option" => {
+                                    if let Ok(current_exe) = std::env::current_exe() {
+                                        final_cmd = format!(
+                                            "{} --run-option {}",
+                                            current_exe.display(),
+                                            val
+                                        );
+                                    }
+                                }
                                 "@run" => {
                                     let expanded_val = {
                                         let mut parts = val.splitn(2, ' ');
@@ -359,7 +369,10 @@ fn create_session_from_config(
                                         expanded_val,
                                     );
                                     trace!("@run: {}", expanded_val);
-                                    wait_for_shell_idle(&task.pane_id, 10_000);
+                                    if !wait_for_shell_idle(&task.pane_id, 30_000) {
+                                        warn!("skipping @run command for pane {} due to timeout", task.pane_id);
+                                        continue;
+                                    }
                                     let mut load = Command::new("tmux")
                                         .arg("load-buffer").arg("-")
                                         .stdin(std::process::Stdio::piped())
@@ -378,14 +391,14 @@ fn create_session_from_config(
                                     continue;
                                 }
                                 "@wait" => {
-                                    if let Ok(secs) = val.parse::<u64>() {
+                                    if let Ok(secs) = val.trim().parse::<u64>() {
                                         trace!("@wait {secs}s");
                                         thread::sleep(Duration::from_secs(secs));
                                     }
                                     continue;
                                 }
                                 "@wait-milli" | "@wait-ms" => {
-                                    if let Ok(ms) = val.parse::<u64>() {
+                                    if let Ok(ms) = val.trim().parse::<u64>() {
                                         trace!("@wait-ms {ms}ms");
                                         thread::sleep(Duration::from_millis(ms));
                                     }
@@ -398,7 +411,7 @@ fn create_session_from_config(
                                     key_cmd
                                         .arg("send-keys")
                                         .arg("-t").arg(&task.pane_id)
-                                        .arg(val);
+                                        .args(val.split_whitespace());
                                     let _ = key_cmd.status();
                                     continue;
                                 }
@@ -407,7 +420,10 @@ fn create_session_from_config(
                         }
 
                         trace!("exec: {trimmed}");
-                        wait_for_shell_idle(&task.pane_id, 10_000);
+                        if !wait_for_shell_idle(&task.pane_id, 30_000) {
+                            tracing::warn!("skipping remaining commands for pane {} due to timeout", task.pane_id);
+                            break;
+                        }
 
                         let mut run_cmd = Command::new("tmux");
                         run_cmd

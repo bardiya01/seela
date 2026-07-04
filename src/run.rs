@@ -57,8 +57,9 @@ pub fn run(config: &Config, config_dir: &Path, cli: Args) -> Result<(), Box<dyn 
 }
 
 pub fn check_binary(name: &str) -> bool {
-    Command::new("which")
-        .arg(name)
+    Command::new("sh")
+        .arg("-c")
+        .arg(format!("command -v {}", name))
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()
@@ -77,6 +78,35 @@ pub fn run_confirm(cmd: &str) -> Result<(), Box<dyn Error>> {
         let status = Command::new("sh").arg("-c").arg(cmd).status()?;
         if !status.success() {
             warn!("@confirm command exited with status: {}", status);
+        }
+    } else {
+        println!("Skipped.");
+    }
+
+    Ok(())
+}
+
+pub fn run_option_prompt(opts: &[String]) -> Result<(), Box<dyn Error>> {
+    println!("Select an option:");
+    for (i, opt) in opts.iter().enumerate() {
+        println!("{}. {}", i + 1, opt);
+    }
+    print!("> ");
+    io::stdout().flush()?;
+
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+
+    let input = input.trim();
+    if let Ok(num) = input.parse::<usize>() {
+        if num > 0 && num <= opts.len() {
+            let cmd = &opts[num - 1];
+            let status = Command::new("sh").arg("-c").arg(cmd).status()?;
+            if !status.success() {
+                tracing::warn!("@option command exited with status: {}", status);
+            }
+        } else {
+            println!("Invalid selection. Skipped.");
         }
     } else {
         println!("Skipped.");

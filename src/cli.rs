@@ -17,4 +17,7 @@ pub struct Args {
 
     #[arg(long, hide = true)]
     pub run_command: Option<String>,
+
+    #[arg(long, hide = true, num_args = 1..)]
+    pub run_option: Option<Vec<String>>,
 }

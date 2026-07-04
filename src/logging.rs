@@ -1,7 +1,8 @@
 use std::{fs, path::PathBuf};
 use tracing::{Level, debug};
 use tracing_appender::non_blocking::WorkerGuard;
-use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt, Layer};
+use tracing_subscriber::filter::LevelFilter;
 
 const MAX_LOG_BYTES: u64 = 1024 * 1024; // 1 MB
 
@@ -46,17 +47,18 @@ pub fn init(level: Level) -> WorkerGuard {
         .with_writer(non_blocking)
         .with_ansi(false)
         .with_target(true)
-        .with_level(true);
+        .with_level(true)
+        .with_filter(env_filter);
 
     let stderr_layer = fmt::layer()
         .with_writer(std::io::stderr)
         .with_ansi(true)
         .with_target(false)
         .with_level(true)
-        .without_time();
+        .without_time()
+        .with_filter(LevelFilter::WARN);
 
     tracing_subscriber::registry()
-        .with(env_filter)
         .with(file_layer)
         .with(stderr_layer)
         .init();

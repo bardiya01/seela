@@ -23,6 +23,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         return run_confirm(&cmd);
     }
 
+    if let Some(opts) = args.run_option {
+        let _guard = init(Level::WARN);
+        return crate::run::run_option_prompt(&opts);
+    }
+
     let (cfg, config_dir) = load_config(args.config.clone()).map_err(|e| {
         eprintln!("seela: {e}");
         e
